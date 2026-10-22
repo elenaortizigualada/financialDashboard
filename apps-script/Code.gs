@@ -2,11 +2,19 @@ const SPREADSHEET_ID = '1guiYQ_gslGv325ttmCwve0y-G-h0tXssC-CHdVb-WuA';
 const ALLOWED_EMAILS = ['elenaortizigualada@gmail.com', 'franjp17@gmail.com'];
 const ALLOWED_APP_ORIGINS = [
   'https://financial-dashboard-alpha-lilac.vercel.app',
-  'https://financial-dashboard-k3y7ulu4g-elenaortizigualada.vercel.app',
 ];
 
 function isAllowedOrigin(origin) {
-  return ALLOWED_APP_ORIGINS.includes(origin) || /^http:\/\/localhost:517\d$/.test(origin);
+  try {
+    const parsedOrigin = new URL(String(origin || '').trim());
+    const normalizedOrigin = parsedOrigin.origin;
+    const isLocalVite = parsedOrigin.protocol === 'http:' && /^localhost:517\d$/.test(parsedOrigin.host);
+    const isFranelaPreview = parsedOrigin.protocol === 'https:'
+      && /^financial-dashboard-[a-z0-9]+-elenaortizigualada\.vercel\.app$/i.test(parsedOrigin.hostname);
+    return ALLOWED_APP_ORIGINS.includes(normalizedOrigin) || isLocalVite || isFranelaPreview;
+  } catch (error) {
+    return false;
+  }
 }
 
 function assertAllowedUser() {
@@ -23,6 +31,12 @@ function doGet(event) {
   const parentOrigin = params.parentOrigin || '';
   const mode = params.mode === 'authorize' ? 'authorize' : 'data';
 
+  // La pantalla de autorización no devuelve datos al dashboard. La comprobación
+  // de origen se mantiene para las peticiones de datos, que sí leen la hoja.
+  if (mode === 'authorize') {
+    const template = HtmlService.createTemplateFromFile('Bridge');
+    return template.evaluate().setTitle('franela Finanzas · Acceso a Google Sheets');
+  }
   if (!isAllowedOrigin(parentOrigin)) {
     return HtmlService.createHtmlOutput('Origen no autorizado. Añade el origen exacto de la app a ALLOWED_APP_ORIGINS.');
   }
@@ -57,8 +71,7 @@ function doGet(event) {
     }
   }
 
-  const template = HtmlService.createTemplateFromFile('Bridge');
-  return template.evaluate().setTitle('franela Finanzas · Acceso a Google Sheets');
+  return HtmlService.createHtmlOutput('Solicitud no válida.');
 }
 
 function createJsonpResponse(callback, payload) {
