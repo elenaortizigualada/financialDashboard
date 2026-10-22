@@ -4,7 +4,7 @@ Dashboard web de finanzas personales creado con React, TypeScript, Vite, Rechart
 
 ## Requisitos
 
-- Node.js 20.19+ o 22.12+
+- Node.js 20.19+ o 22.12+ 
 - npm
 
 ## Desarrollo local
