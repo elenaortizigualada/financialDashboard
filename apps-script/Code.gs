@@ -1,7 +1,7 @@
 const SPREADSHEET_ID = '1guiYQ_gslGv325ttmCwve0y-G-h0tXssC-CHdVb-WuA';
 const ALLOWED_EMAILS = ['elenaortizigualada@gmail.com', 'franjp17@gmail.com'];
 const ALLOWED_APP_ORIGINS = [
-  'https://financial-dashboard-alpha-lilac.vercel.app/',
+  'https://financial-dashboard-alpha-lilac.vercel.app',
 ];
 
 function isAllowedOrigin(origin) {
