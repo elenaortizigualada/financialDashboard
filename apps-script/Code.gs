@@ -25,12 +25,15 @@ function assertAllowedUser() {
 function doGet(event) {
   const params = event && event.parameter ? event.parameter : {};
   const parentOrigin = params.parentOrigin || '';
-  const mode = params.mode === 'authorize' ? 'authorize' : 'data';
+  const mode = params.mode === 'authorize' ? 'authorize' : params.mode === 'bridge' ? 'bridge' : 'data';
   const callback = params.callback || '';
 
   // La pantalla de autorización no devuelve datos al dashboard. La comprobación
   // de origen se mantiene para las peticiones de datos, que sí leen la hoja.
-  if (mode === 'authorize') {
+  if (mode === 'authorize' || mode === 'bridge') {
+    if (mode === 'bridge' && !isAllowedOrigin(parentOrigin)) {
+      return HtmlService.createHtmlOutput('Origen no autorizado. Añade el origen exacto de la app a ALLOWED_APP_ORIGINS.');
+    }
     const template = HtmlService.createTemplateFromFile('Bridge');
     return template.evaluate().setTitle('franela Finanzas · Acceso a Google Sheets');
   }

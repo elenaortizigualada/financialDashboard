@@ -13,16 +13,46 @@
     <script>
       const status = document.getElementById('status');
 
-      google.script.run
-        .withSuccessHandler(years => {
-          const available = years.length ? years.map(year => `GASTOS ${year}`).join(', ') : 'ninguna pestaña GASTOS YYYY';
-          status.textContent = `Acceso autorizado. Pestañas disponibles: ${available}. Vuelve a franela Finanzas para cargar la hoja.`;
-        })
-        .withFailureHandler(error => {
-          const message = error && error.message ? error.message : 'No se pudo leer la spreadsheet.';
-          status.textContent = message;
-        })
-        .getAvailableYears();
+      const params = new URLSearchParams(window.location.search);
+      const bridgeMode = params.get('mode') === 'bridge';
+      const parentOrigin = params.get('parentOrigin') || '*';
+
+      function sendToDashboard(payload) {
+        if (window.opener) {
+          window.opener.postMessage({ source: 'franela-finanzas', payload }, parentOrigin);
+          status.textContent = 'Datos cargados. Vuelve a franela Finanzas.';
+        } else {
+          status.textContent = 'Vuelve a franela Finanzas para continuar.';
+        }
+      }
+
+      if (bridgeMode) {
+        const year = Number(params.get('year'));
+        const sheet = params.get('sheet');
+        const onFailure = error => sendToDashboard({ error: error && error.message ? error.message : 'No se pudo leer la spreadsheet.' });
+        if (sheet === 'savings') {
+          google.script.run.withSuccessHandler(sendToDashboard).withFailureHandler(onFailure).getSavingsData();
+        } else {
+          google.script.run
+            .withSuccessHandler(data => google.script.run
+              .withSuccessHandler(years => sendToDashboard({ ...data, years }))
+              .withFailureHandler(onFailure)
+              .getAvailableYears())
+            .withFailureHandler(onFailure)
+            .getSpreadsheetData(year);
+        }
+      } else {
+        google.script.run
+          .withSuccessHandler(years => {
+            const available = years.length ? years.map(year => `GASTOS ${year}`).join(', ') : 'ninguna pestaña GASTOS YYYY';
+            status.textContent = `Acceso autorizado. Pestañas disponibles: ${available}. Vuelve a franela Finanzas para cargar la hoja.`;
+          })
+          .withFailureHandler(error => {
+            const message = error && error.message ? error.message : 'No se pudo leer la spreadsheet.';
+            status.textContent = message;
+          })
+          .getAvailableYears();
+      }
     </script>
   </body>
 </html>

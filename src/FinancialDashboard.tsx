@@ -110,6 +110,9 @@ function getValue(rows: SheetRow[], type: RowType, monthIndex: number): number {
 }
 
 function fetchAppsScriptSheet(endpoint: string, year: number): Promise<AppsScriptPayload> {
+  if (window.matchMedia('(max-width: 700px), (pointer: coarse)').matches) {
+    return fetchAppsScriptThroughBridge(endpoint, { year: String(year) });
+  }
   return new Promise((resolve, reject) => {
     const callbackName = `__franelaSheet_${crypto.randomUUID().replace(/-/g, '_')}`;
     const script = document.createElement('script');
@@ -137,7 +140,37 @@ function fetchAppsScriptSheet(endpoint: string, year: number): Promise<AppsScrip
   });
 }
 
+function fetchAppsScriptThroughBridge(endpoint: string, params: Record<string, string>): Promise<AppsScriptPayload> {
+  return new Promise((resolve, reject) => {
+    const url = new URL(endpoint);
+    url.searchParams.set('mode', 'bridge');
+    url.searchParams.set('parentOrigin', window.location.origin);
+    Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+    const bridgeWindow = window.open(url.toString(), '_blank');
+    if (!bridgeWindow) {
+      reject(new Error('El navegador bloqueó la ventana de Google. Permite ventanas emergentes y vuelve a intentarlo.'));
+      return;
+    }
+    const onMessage = (event: MessageEvent<{ source?: string; payload?: AppsScriptPayload }>) => {
+      if (event.source !== bridgeWindow || event.data?.source !== 'franela-finanzas' || !event.data.payload) return;
+      window.removeEventListener('message', onMessage);
+      window.clearTimeout(timeout);
+      bridgeWindow.close();
+      resolve(event.data.payload);
+    };
+    const timeout = window.setTimeout(() => {
+      window.removeEventListener('message', onMessage);
+      bridgeWindow.close();
+      reject(new Error('Google no respondió. Vuelve a autorizar Apps Script y permite ventanas emergentes en el navegador móvil.'));
+    }, 30000);
+    window.addEventListener('message', onMessage);
+  });
+}
+
 function fetchAppsScriptSavings(endpoint: string): Promise<AppsScriptPayload> {
+  if (window.matchMedia('(max-width: 700px), (pointer: coarse)').matches) {
+    return fetchAppsScriptThroughBridge(endpoint, { sheet: 'savings' });
+  }
   return new Promise((resolve, reject) => {
     const callbackName = `__franelaSheet_${crypto.randomUUID().replace(/-/g, '_')}`;
     const script = document.createElement('script');
