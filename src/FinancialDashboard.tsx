@@ -19,6 +19,8 @@ const sheetUrl = 'https://docs.google.com/spreadsheets/d/1guiYQ_gslGv325ttmCwve0
 const appsScriptUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL?.trim() ?? '';
 const colors = ['#187c68', '#e49b38', '#4f83c2', '#b86855', '#8b78ad', '#6d9f86', '#d2769a', '#87949b', '#c2a64d', '#5eaaa6', '#9a6d54', '#7391b6'];
 const money = (value: number) => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(value);
+const isMobileBrowser = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+  || (window.innerWidth <= 700 && 'ontouchstart' in window);
 
 function parseAmount(value: string | number | boolean | undefined): number {
   if (!value) return 0;
@@ -110,7 +112,7 @@ function getValue(rows: SheetRow[], type: RowType, monthIndex: number): number {
 }
 
 function fetchAppsScriptSheet(endpoint: string, year: number): Promise<AppsScriptPayload> {
-  if (window.matchMedia('(max-width: 700px), (pointer: coarse)').matches) {
+  if (isMobileBrowser()) {
     return fetchAppsScriptThroughBridge(endpoint, { year: String(year) });
   }
   return new Promise((resolve, reject) => {
@@ -168,7 +170,7 @@ function fetchAppsScriptThroughBridge(endpoint: string, params: Record<string, s
 }
 
 function fetchAppsScriptSavings(endpoint: string): Promise<AppsScriptPayload> {
-  if (window.matchMedia('(max-width: 700px), (pointer: coarse)').matches) {
+  if (isMobileBrowser()) {
     return fetchAppsScriptThroughBridge(endpoint, { sheet: 'savings' });
   }
   return new Promise((resolve, reject) => {
@@ -359,8 +361,7 @@ export default function FinancialDashboard() {
     // Los navegadores móviles suelen bloquear o aislar window.open aunque
     // proceda de un clic. En la misma pestaña Google conserva mejor la sesión;
     // el usuario puede volver atrás después de conceder el acceso.
-    const isMobile = window.matchMedia('(max-width: 700px), (pointer: coarse)').matches;
-    if (isMobile) {
+    if (isMobileBrowser()) {
       window.location.assign(url.toString());
       return;
     }
