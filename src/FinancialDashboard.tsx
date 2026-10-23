@@ -124,7 +124,7 @@ function fetchAppsScriptSheet(endpoint: string, year: number): Promise<AppsScrip
     };
     const timeout = window.setTimeout(() => finish(new Error('Apps Script no devolvió una respuesta. Autoriza primero la Web App en una pestaña normal y verifica que su URL /exec sea la misma que usa el dashboard.')), 30000);
     callbacks[callbackName] = data => finish(undefined, data);
-    script.onerror = () => finish(new Error('Google no pudo cargar la respuesta. Comprueba que autorizaste Apps Script y que la URL /exec apunta al despliegue actual.'));
+    script.onerror = () => finish(new Error('Google no pudo cargar la respuesta. Publica la versión actual de Code.gs en la Web App, comprueba que la URL termina en /exec y que el dominio de este dashboard está en ALLOWED_APP_ORIGINS.'));
     script.async = true;
     const url = new URL(endpoint);
     url.searchParams.set('mode', 'data');

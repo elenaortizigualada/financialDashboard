@@ -30,6 +30,7 @@ function doGet(event) {
   const params = event && event.parameter ? event.parameter : {};
   const parentOrigin = params.parentOrigin || '';
   const mode = params.mode === 'authorize' ? 'authorize' : 'data';
+  const callback = params.callback || '';
 
   // La pantalla de autorización no devuelve datos al dashboard. La comprobación
   // de origen se mantiene para las peticiones de datos, que sí leen la hoja.
@@ -38,10 +39,14 @@ function doGet(event) {
     return template.evaluate().setTitle('franela Finanzas · Acceso a Google Sheets');
   }
   if (!isAllowedOrigin(parentOrigin)) {
+    // Las peticiones de datos llegan como JSONP. Devolver HTML aquí hace que el
+    // navegador solo muestre un error de carga de script y oculta la causa real.
+    if (/^__franelaSheet_[A-Za-z0-9_]{12,80}$/.test(callback)) {
+      return createJsonpResponse(callback, { error: 'Origen no autorizado. Añade el origen exacto de la app a ALLOWED_APP_ORIGINS y vuelve a desplegar esta versión.' });
+    }
     return HtmlService.createHtmlOutput('Origen no autorizado. Añade el origen exacto de la app a ALLOWED_APP_ORIGINS.');
   }
   if (mode === 'data') {
-    const callback = params.callback || '';
     if (!/^__franelaSheet_[A-Za-z0-9_]{12,80}$/.test(callback)) {
       return HtmlService.createHtmlOutput('Solicitud inválida. Vuelve al dashboard e inténtalo de nuevo.');
     }
