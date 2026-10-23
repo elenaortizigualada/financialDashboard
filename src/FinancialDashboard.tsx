@@ -323,7 +323,20 @@ export default function FinancialDashboard() {
     const url = new URL(appsScriptUrl);
     url.searchParams.set('mode', 'authorize');
     url.searchParams.set('parentOrigin', window.location.origin);
-    window.open(url.toString(), '_blank');
+    // Los navegadores móviles suelen bloquear o aislar window.open aunque
+    // proceda de un clic. En la misma pestaña Google conserva mejor la sesión;
+    // el usuario puede volver atrás después de conceder el acceso.
+    const isMobile = window.matchMedia('(max-width: 700px), (pointer: coarse)').matches;
+    if (isMobile) {
+      window.location.assign(url.toString());
+      return;
+    }
+    const authWindow = window.open(url.toString(), '_blank');
+    if (!authWindow) {
+      setStatus('El navegador bloqueó la ventana de Google. Abriendo la autorización en esta pestaña…');
+      window.location.assign(url.toString());
+      return;
+    }
     setStatus('Completa el inicio de sesión y acepta el acceso de Apps Script en la pestaña nueva. Después vuelve aquí y carga la hoja.');
   }
 

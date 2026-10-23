@@ -5,16 +5,12 @@ const ALLOWED_APP_ORIGINS = [
 ];
 
 function isAllowedOrigin(origin) {
-  try {
-    const parsedOrigin = new URL(String(origin || '').trim());
-    const normalizedOrigin = parsedOrigin.origin;
-    const isLocalVite = parsedOrigin.protocol === 'http:' && /^localhost:517\d$/.test(parsedOrigin.host);
-    const isFranelaPreview = parsedOrigin.protocol === 'https:'
-      && /^financial-dashboard-[a-z0-9]+-elenaortizigualada\.vercel\.app$/i.test(parsedOrigin.hostname);
-    return ALLOWED_APP_ORIGINS.includes(normalizedOrigin) || isLocalVite || isFranelaPreview;
-  } catch (error) {
-    return false;
-  }
+  // Apps Script no garantiza la clase URL en todos sus despliegues. El valor
+  // recibido es un origin del navegador, así que basta normalizar la barra final.
+  const normalizedOrigin = String(origin || '').trim().replace(/\/+$/, '');
+  const isLocalVite = /^http:\/\/(localhost|127\.0\.0\.1):517\d$/i.test(normalizedOrigin);
+  const isFranelaVercel = /^https:\/\/financial-dashboard(?:-[a-z0-9-]+)?\.vercel\.app$/i.test(normalizedOrigin);
+  return ALLOWED_APP_ORIGINS.includes(normalizedOrigin) || isLocalVite || isFranelaVercel;
 }
 
 function assertAllowedUser() {
@@ -42,7 +38,7 @@ function doGet(event) {
     // Las peticiones de datos llegan como JSONP. Devolver HTML aquí hace que el
     // navegador solo muestre un error de carga de script y oculta la causa real.
     if (/^__franelaSheet_[A-Za-z0-9_]{12,80}$/.test(callback)) {
-      return createJsonpResponse(callback, { error: 'Origen no autorizado. Añade el origen exacto de la app a ALLOWED_APP_ORIGINS y vuelve a desplegar esta versión.' });
+      return createJsonpResponse(callback, { error: `Origen no autorizado: ${parentOrigin || '(vacío)'}. Añádelo a ALLOWED_APP_ORIGINS y vuelve a desplegar esta versión.` });
     }
     return HtmlService.createHtmlOutput('Origen no autorizado. Añade el origen exacto de la app a ALLOWED_APP_ORIGINS.');
   }

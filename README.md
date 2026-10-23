@@ -86,7 +86,7 @@ Sustituye `TU_USUARIO` por tu usuario real y autentícate con GitHub cuando corr
 
 ### Configurar Apps Script en Vercel
 
-En **Project → Settings → Environment Variables**, crea `VITE_GOOGLE_APPS_SCRIPT_URL` con la URL `/exec` de tu Web App (el valor del `.env.local` local). Selecciona **Production** y también **Preview** si abres URLs de preview, guarda y ejecuta un nuevo **Redeploy** del entorno correspondiente. `ALLOWED_APP_ORIGINS` incluye el dominio estable de producción; `Code.gs` también admite previews del proyecto con el patrón `financial-dashboard-<id>-elenaortizigualada.vercel.app`, por lo que no hace falta añadir cada ID nuevo. Los datos siguen restringidos a `ALLOWED_EMAILS`. Vite incorpora las variables `VITE_*` durante el build: añadirla sin volver a desplegar no cambia el sitio ya publicado.
+En **Project → Settings → Environment Variables**, crea `VITE_GOOGLE_APPS_SCRIPT_URL` con la URL `/exec` de tu Web App (el valor del `.env.local` local). Selecciona **Production** y también **Preview** si abres URLs de preview, guarda y ejecuta un nuevo **Redeploy** del entorno correspondiente. `Code.gs` admite el dominio estable y los alias de Vercel del proyecto `financial-dashboard`; si usas un dominio personalizado, añade su origen HTTPS exacto a `ALLOWED_APP_ORIGINS` y vuelve a desplegar Apps Script. Los datos siguen restringidos a `ALLOWED_EMAILS`. Vite incorpora las variables `VITE_*` durante el build: añadirla sin volver a desplegar no cambia el sitio ya publicado.
 
 El plan Hobby gratuito de Vercel está orientado a uso personal no comercial; revisa las condiciones y cuotas vigentes.
 
