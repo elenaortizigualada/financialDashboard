@@ -52,7 +52,14 @@ function parseSheet(table: (string | number | boolean)[][]): SheetRow[] {
     if (!label) continue;
     if (sheetRowNumber === statementRows.expenseTotal || normalized === 'gastos') { section = 'expense'; rows.push({ label, rowNumber: sheetRowNumber, type: 'expense-total', values: monthColumns.map(index => parseAmount(record[index])) }); continue; }
     if (normalized === 'sobra') { section = 'other'; continue; }
-    if (sheetRowNumber === statementRows.incomeTotal || normalized === 'ingresos totales') { rows.push({ label, rowNumber: sheetRowNumber, type: 'income-total', values: monthColumns.map(index => parseAmount(record[index])) }); continue; }
+    // No uses una posición fija para los ingresos: si se inserta una fila en la
+    // hoja, esa posición puede apuntar a otro concepto y mostrar un importe
+    // ajeno (por ejemplo, un valor fijo de 100 €). La etiqueta es la fuente de
+    // verdad; getValue() ya tiene un cálculo alternativo si no hay total.
+    if (/^(ingresos?|total\s+de\s+ingresos|ingresos?\s+totales?)$/.test(normalized)) {
+      rows.push({ label, rowNumber: sheetRowNumber, type: 'income-total', values: monthColumns.map(index => parseAmount(record[index])) });
+      continue;
+    }
     if ([statementRows.jointContribution, statementRows.franContribution, statementRows.elenaContribution].includes(sheetRowNumber)) {
       rows.push({ label, rowNumber: sheetRowNumber, type: 'contribution', values: monthColumns.map(index => parseAmount(record[index])) });
       continue;
