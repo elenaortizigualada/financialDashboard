@@ -227,11 +227,19 @@ export default function FinancialDashboard() {
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const monthlyRowsValue = (rowNumbers: number[], selectedMonth: number) => rowNumbers.reduce((total, rowNumber) => total + (rows.find(item => item.rowNumber === rowNumber)?.values[selectedMonth] ?? 0), 0);
+  const monthlyBreakdown = (rowNumbers: number[]) => rowNumbers
+    .map(rowNumber => rows.find(item => item.rowNumber === rowNumber))
+    .filter((row): row is SheetRow => Boolean(row))
+    .map(row => ({ label: row.label, amount: row.values[monthIndex] ?? 0 }));
   const income = getValue(rows, 'income-total', monthIndex);
-  const expenses = getValue(rows, 'expense-total', monthIndex);
-  const savings = rows.find(item => item.rowNumber === statementRows.jointSavings)?.values[monthIndex] ?? 0;
-  const elenaSavings = rows.find(item => item.rowNumber === statementRows.elenaSavings)?.values[monthIndex] ?? 0;
-  const elenaInvestment = rows.find(item => item.rowNumber === statementRows.elenaInvestment)?.values[monthIndex] ?? 0;
+  const expenses = monthlyRowsValue(annualExpenseRows, monthIndex);
+  const savings = monthlyRowsValue(annualSavingsRows, monthIndex);
+  const investment = monthlyRowsValue(annualInvestmentRows, monthIndex);
+  const monthlyExpenseBreakdown = monthlyBreakdown(annualExpenseRows);
+  const monthlySavingsBreakdown = monthlyBreakdown(annualSavingsRows);
+  const monthlyInvestmentBreakdown = monthlyBreakdown(annualInvestmentRows);
+  const monthlyPercent = (value: number, total: number) => total ? value / total * 100 : 0;
   const incomeContributions = [
     { label: 'Cuenta conjunta', rowNumber: statementRows.jointContribution },
     { label: 'Fran', rowNumber: statementRows.franContribution },
@@ -239,7 +247,6 @@ export default function FinancialDashboard() {
   ].map(item => ({ ...item, amount: rows.find(row => row.rowNumber === item.rowNumber)?.values[monthIndex] ?? 0 }));
   const annualIncome = months.reduce((total, _, index) => total + getValue(rows, 'income-total', index), 0);
   const annualRowValue = (rowNumber: number) => rows.find(item => item.rowNumber === rowNumber)?.values.reduce((sum, value) => sum + value, 0) ?? 0;
-  const monthlyRowsValue = (rowNumbers: number[], monthIndex: number) => rowNumbers.reduce((total, rowNumber) => total + (rows.find(item => item.rowNumber === rowNumber)?.values[monthIndex] ?? 0), 0);
   const annualInvestmentBreakdown = annualInvestmentRows
     .map(rowNumber => rows.find(item => item.rowNumber === rowNumber))
     .filter((row): row is SheetRow => Boolean(row))
@@ -262,8 +269,9 @@ export default function FinancialDashboard() {
   const monthlyChart = months.map((name, index) => ({
     name: name.slice(0, 3),
     ingresos: getValue(rows, 'income-total', index),
-    gastos: getValue(rows, 'expense-total', index),
-    ahorro: (rows.find(item => item.rowNumber === statementRows.elenaSavings)?.values[index] ?? 0) + (rows.find(item => item.rowNumber === statementRows.jointSavings)?.values[index] ?? 0),
+    gastos: monthlyRowsValue(annualExpenseRows, index),
+    ahorro: monthlyRowsValue(annualSavingsRows, index),
+    inversion: monthlyRowsValue(annualInvestmentRows, index),
   }));
   const yearlyChart = months.map((name, index) => ({
     name: name.slice(0, 3),
@@ -434,7 +442,7 @@ export default function FinancialDashboard() {
         {view === 'ahorros' ? <>
           <section className="savings-overview" aria-label="Resumen del patrimonio ahorrado">
             <article className="savings-total"><span className="overline">PATRIMONIO TOTAL</span><strong>{money(totalSavings)}</strong><small>Suma de todas las posiciones</small></article>
-            {savingsGroups.map((group, index) => <article className="savings-owner" key={group.name}><i className="savings-owner-mark" style={{ background: colors[index % colors.length] }}/><div><span>{group.name}</span><strong>{money(group.total)}</strong><div className="savings-owner-positions">{group.positions.map(position => <div key={`${group.name}-${position.name}`}><span>{position.name}</span><b>{money(position.amount)}</b></div>)}</div></div><small>{totalSavings ? `${(group.total / totalSavings * 100).toLocaleString('es-ES', { maximumFractionDigits: 1 })}%` : '0 %'}</small></article>)}
+            {savingsGroups.map((group, index) => <article className="savings-owner" key={group.name}><i className="savings-owner-mark" style={{ background: colors[index % colors.length] }}/><div><span>{group.name}</span><strong>{money(group.total)}</strong><div className="savings-owner-positions">{group.positions.filter(position => !(/conjunto/i.test(group.name) && /^(total|total liquido|total acciones)$/i.test(position.name.trim()))).map(position => <div key={`${group.name}-${position.name}`}><span>{position.name}</span><b>{money(position.amount)}</b></div>)}</div></div><small>{totalSavings ? `${(group.total / totalSavings * 100).toLocaleString('es-ES', { maximumFractionDigits: 1 })}%` : '0 %'}</small></article>)}
           </section>
           <section className="savings-content-grid">
             <article className="finance-panel savings-breakdown"><div className="panel-title"><div><span className="overline">DISTRIBUCIÓN</span><h2>Saldo por titular</h2></div><button className="icon-btn" aria-label="Actualizar ahorros" title="Actualizar ahorros" onClick={() => void syncSavings()} disabled={loading}><RefreshCw size={16} className={loading ? 'spin' : ''}/></button></div>{savingsGroups.length ? <div className="savings-donut"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={savingsGroups} dataKey="total" nameKey="name" innerRadius={65} outerRadius={96} paddingAngle={3} stroke="none">{savingsGroups.map((group, index) => <Cell key={group.name} fill={colors[index % colors.length]}/>)}</Pie><Tooltip formatter={value => money(Number(value))}/><Legend verticalAlign="bottom" iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 9 }}/></PieChart></ResponsiveContainer><div className="savings-donut-center"><strong>{money(totalSavings)}</strong><small>patrimonio total</small></div></div> : <div className="chart-empty">Cargando AHORROS…</div>}</article>
@@ -444,9 +452,8 @@ export default function FinancialDashboard() {
           <section className="category-kpi-grid" aria-label="Media mensual de gasto por categoría">
             {categoryTotals.filter(item => item.total !== 0).map(item => <article className="category-kpi" key={item.label} style={{ '--category-color': item.color } as CSSProperties}>
               <div className="category-kpi-heading"><i/><strong>{item.label}</strong></div>
-              <div className="category-kpi-values"><div><b>{money(item.total)}</b><small>Total anual</small></div><div><strong>{money(item.monthlyAverage)}</strong><small>Media mensual</small></div></div>
+              <div className="category-kpi-values"><b>{money(item.total)} <span>({money(item.monthlyAverage)})</span></b></div>
               <small>{totalCategoryExpenses ? `${(item.total / totalCategoryExpenses * 100).toLocaleString('es-ES', { maximumFractionDigits: 1 })}% del total de gastos` : '0 % del total de gastos'}</small>
-              <div className="category-year-values">{item.byYear.map(entry => <span key={entry.year}>{entry.year} <strong>{money(entry.amount)}</strong></span>)}</div>
             </article>)}
             {categoryTotals.every(item => item.total === 0) && <div className="finance-panel category-empty">Carga las hojas de los años que quieres comparar para ver sus categorías.</div>}
           </section>
@@ -469,12 +476,13 @@ export default function FinancialDashboard() {
         </> : <>
           <section className="finance-kpis monthly-kpis" aria-label="Indicadores del mes">
             <article className="kpi kpi-income kpi-income-breakdown"><div className="kpi-label"><span>Ingresos totales</span><TrendingUp size={17}/></div><strong>{money(income)}</strong><div className="income-sub-kpis">{incomeContributions.map(item => <div key={item.rowNumber}><span>{item.label}</span><b>{money(item.amount)}</b></div>)}</div></article>
-            <article className="kpi kpi-expense"><div className="kpi-label"><span>Gastos</span><TrendingDown size={17}/></div><strong>{money(expenses)}</strong><small>Gasto total registrado</small></article>
-            <article className="kpi kpi-saving kpi-savings-breakdown"><div className="kpi-label"><span>Ahorro conjunto</span><PiggyBank size={17}/></div><strong className={savings < 0 ? 'negative' : ''}>{money(savings)}</strong><div className="savings-sub-kpis"><div><span>Ahorro Elena</span><b>{money(elenaSavings)}</b></div><div><span>Inversión Elena</span><b>{money(elenaInvestment)}</b></div></div></article>
+            <article className="kpi kpi-expense kpi-expense-breakdown"><div className="kpi-label"><span>Gastos</span><TrendingDown size={17}/></div><strong>{money(expenses)}</strong><small>Gasto total registrado</small><div className="expense-sub-kpis">{monthlyExpenseBreakdown.map(item => <div key={item.label}><span>{item.label}</span><b>{money(item.amount)} · {monthlyPercent(item.amount, expenses).toLocaleString('es-ES', { maximumFractionDigits: 1 })}%</b></div>)}</div></article>
+            <article className="kpi kpi-saving kpi-savings-breakdown"><div className="kpi-label"><span>Ahorro</span><PiggyBank size={17}/></div><strong className={savings < 0 ? 'negative' : ''}>{money(savings)}</strong><small>Ahorro total registrado</small><div className="savings-sub-kpis">{monthlySavingsBreakdown.map(item => <div key={item.label}><span>{item.label}</span><b>{money(item.amount)} · {monthlyPercent(item.amount, savings).toLocaleString('es-ES', { maximumFractionDigits: 1 })}%</b></div>)}</div></article>
+            <article className="kpi kpi-investment kpi-savings-breakdown"><div className="kpi-label"><span>Inversión</span><ChartNoAxesCombined size={17}/></div><strong>{money(investment)}</strong><small>Inversión total registrada</small><div className="savings-sub-kpis">{monthlyInvestmentBreakdown.map(item => <div key={item.label}><span>{item.label}</span><b>{money(item.amount)} · {monthlyPercent(item.amount, investment).toLocaleString('es-ES', { maximumFractionDigits: 1 })}%</b></div>)}</div></article>
           </section>
 
           <section className="chart-layout">
-            <article className="finance-panel trend-panel"><div className="panel-title"><div><span className="overline">VISTA ANUAL</span><h2>Ingresos, gastos y ahorro</h2></div><span className="legend-chip"><i/> EUR</span></div><div className="annual-chart"><ResponsiveContainer width="100%" height="100%"><BarChart data={monthlyChart} margin={{ top: 12, right: 8, left: -12, bottom: 0 }} barGap={4}><CartesianGrid vertical={false} stroke="#e9eee9"/><XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: '#82918a', fontSize: 11 }}/><YAxis tickLine={false} axisLine={false} tick={{ fill: '#82918a', fontSize: 10 }} tickFormatter={value => `${Math.round(Number(value) / 1000)}k`}/><Tooltip formatter={value => money(Number(value))} contentStyle={{ border: '1px solid #e5ebe5', borderRadius: 8, fontSize: 12 }}/><Legend verticalAlign="top" align="right" iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingBottom: 12 }}/><Bar dataKey="ingresos" name="Ingresos" fill="#187c68" radius={[3, 3, 0, 0]} maxBarSize={24}/><Bar dataKey="gastos" name="Gastos" fill="#e6a751" radius={[3, 3, 0, 0]} maxBarSize={24}/><Bar dataKey="ahorro" name="Ahorrado" fill="#8195bd" radius={[3, 3, 0, 0]} maxBarSize={24}/></BarChart></ResponsiveContainer></div><p className="chart-caption">El ahorro incluye el ahorro conjunto y el ahorro personal.</p></article>
+            <article className="finance-panel trend-panel"><div className="panel-title"><div><span className="overline">VISTA ANUAL</span><h2>Ingresos, gastos, ahorro e inversión</h2></div><span className="legend-chip"><i/> EUR</span></div><div className="annual-chart"><ResponsiveContainer width="100%" height="100%"><BarChart data={monthlyChart} margin={{ top: 12, right: 8, left: -12, bottom: 0 }} barGap={4}><CartesianGrid vertical={false} stroke="#e9eee9"/><XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: '#82918a', fontSize: 11 }}/><YAxis tickLine={false} axisLine={false} tick={{ fill: '#82918a', fontSize: 10 }} tickFormatter={value => `${Math.round(Number(value) / 1000)}k`}/><Tooltip formatter={value => money(Number(value))} contentStyle={{ border: '1px solid #e5ebe5', borderRadius: 8, fontSize: 12 }}/><Legend verticalAlign="top" align="right" iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingBottom: 12 }}/><Bar dataKey="ingresos" name="Ingresos" fill="#187c68" radius={[3, 3, 0, 0]} maxBarSize={24}/><Bar dataKey="gastos" name="Gastos" fill="#e6a751" radius={[3, 3, 0, 0]} maxBarSize={24}/><Bar dataKey="ahorro" name="Ahorrado" fill="#8195bd" radius={[3, 3, 0, 0]} maxBarSize={24}/><Bar dataKey="inversion" name="Inversión" fill="#9b79a7" radius={[3, 3, 0, 0]} maxBarSize={24}/></BarChart></ResponsiveContainer></div><p className="chart-caption">Los importes se calculan con el desglose de gastos, ahorro e inversión del mes.</p></article>
             <article className="finance-panel category-panel"><div className="panel-title"><div><span className="overline">{months[monthIndex].toLocaleUpperCase('es')} · DISTRIBUCIÓN</span><h2>¿A dónde va?</h2></div></div>{spending.length ? <><div className="donut-chart"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={spending.slice(0, 7)} dataKey="value" nameKey="name" innerRadius={58} outerRadius={83} paddingAngle={2} stroke="none">{spending.slice(0, 7).map(item => <Cell key={item.name} fill={item.fill}/>)}</Pie><Tooltip formatter={value => money(Number(value))}/></PieChart></ResponsiveContainer><div className="donut-center"><strong>{money(expenses)}</strong><small>total gastos</small></div></div><div className="category-legend">{spending.slice(0, 5).map(item => <div key={item.name}><span><i style={{ background: item.fill }}/>{item.name}</span><strong>{money(item.value)}</strong></div>)}</div></> : <div className="chart-empty">Sin gastos para este mes.</div>}</article>
           </section>
 
