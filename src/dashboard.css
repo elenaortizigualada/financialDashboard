@@ -54,9 +54,10 @@ button{cursor:pointer}
 .month-control select{border:0;background:transparent;color:#354a40;font-size:11px;font-weight:700;padding:7px 3px;outline:none;text-transform:capitalize}
 .finance-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
 .monthly-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+.annual-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
 .kpi{position:relative;overflow:hidden;min-height:122px;background:#fff;border:1px solid #e7ebe5;border-radius:5px;padding:17px 18px}
 .kpi:after{position:absolute;top:0;left:0;width:3px;height:100%;content:'';background:#187c68}
-.kpi-expense:after{background:#e2a148}.kpi-balance:after{background:#587db0}.kpi-saving:after{background:#9a79a7}
+.kpi-expense:after{background:#e2a148}.kpi-balance:after{background:#587db0}.kpi-saving:after{background:#8195bd}.kpi-investment:after{background:#9a79a7}
 .kpi-label{display:flex;justify-content:space-between;align-items:center;color:#829188;font-size:10px;font-weight:600}
 .kpi-label svg{color:#81968a}
 .kpi strong{display:block;margin-top:16px;color:#294239;font:700 22px Manrope,sans-serif;letter-spacing:0;white-space:nowrap}
@@ -96,12 +97,12 @@ button{cursor:pointer}
 .category-legend>div,.category-legend>div>span{display:flex;align-items:center}
 .category-legend>div{justify-content:space-between;gap:7px;color:#6d7c73;font-size:9px}
 .category-legend>div>span{min-width:0;gap:7px}.category-legend i{width:7px;height:7px;flex:0 0 7px;border-radius:50%}.category-legend strong{color:#44574e;font-size:9px;font-weight:600;white-space:nowrap}
-.category-kpi-grid{display:grid;grid-template-columns:repeat(8,minmax(125px,1fr));gap:8px;margin:0 -2px 12px;padding:0 2px 5px;overflow-x:auto;scrollbar-width:thin;scrollbar-color:#cbd6ce transparent}
-.category-kpi{position:relative;min-width:0;padding:10px 11px 9px 14px;border:1px solid #e7ebe5;border-radius:5px;background:#fff;overflow:hidden}
+.category-kpi-grid{display:grid;grid-template-columns:repeat(8,minmax(112px,1fr));gap:6px;margin:0 -2px 12px;padding:0 2px 5px;overflow-x:auto;scrollbar-width:thin;scrollbar-color:#cbd6ce transparent}
+.category-kpi{position:relative;min-width:0;padding:8px 9px 7px 12px;border:1px solid #e7ebe5;border-radius:5px;background:#fff;overflow:hidden}
 .category-kpi:before{position:absolute;inset:0 auto 0 0;width:3px;background:var(--category-color);content:''}
 .category-kpi-heading{display:flex;align-items:center;gap:7px;min-height:14px;color:#78877f;font-size:9px}
 .category-kpi-heading i{width:7px;height:7px;border-radius:50%;background:var(--category-color)}
-.category-kpi>b{display:block;margin-top:6px;color:#294239;font:700 16px Manrope,sans-serif;white-space:nowrap}
+.category-kpi>b{display:block;margin-top:5px;color:#294239;font:700 14px Manrope,sans-serif;white-space:nowrap}
 .category-kpi>small{display:block;margin-top:2px;color:#9aa59e;font-size:7px}
 .category-year-values{display:flex;flex-wrap:wrap;gap:4px 8px;margin-top:7px;padding-top:6px;border-top:1px solid #eff2ee}
 .category-year-values span{color:#8b9990;font-size:7px}.category-year-values strong{margin-left:2px;color:#53645b;font-size:7px;font-weight:600}

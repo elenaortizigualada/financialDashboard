@@ -15,7 +15,8 @@ declare global {
 
 const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const statementRows = { jointContribution: 2, franContribution: 7, elenaContribution: 8, elenaInvestment: 9, elenaSavings: 10, jointSavings: 11, expenseTotal: 13, incomeTotal: 46 };
-const annualSavingsRows = [5, 6, 7, 8, 9];
+const annualInvestmentRows = [5, 6];
+const annualSavingsRows = [7, 8, 9];
 const annualExpenseRows = [11, 12, 13];
 const sheetUrl = 'https://docs.google.com/spreadsheets/d/1guiYQ_gslGv325ttmCwve0y-G-h0tXssC-CHdVb-WuA/edit';
 const appsScriptUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL?.trim() ?? '';
@@ -70,7 +71,7 @@ function parseSheet(table: (string | number | boolean)[][]): SheetRow[] {
       rows.push({ label, rowNumber: sheetRowNumber, type: 'contribution', values: monthColumns.map(index => parseAmount(record[index])) });
       continue;
     }
-    const isSavingsRow = annualSavingsRows.includes(sheetRowNumber) || [statementRows.elenaInvestment, statementRows.elenaSavings, statementRows.jointSavings].includes(sheetRowNumber) || normalized.startsWith('ahorro') || /invers|invertid/.test(normalized);
+    const isSavingsRow = annualInvestmentRows.includes(sheetRowNumber) || annualSavingsRows.includes(sheetRowNumber) || [statementRows.elenaInvestment, statementRows.elenaSavings, statementRows.jointSavings].includes(sheetRowNumber) || normalized.startsWith('ahorro') || /invers|invertid/.test(normalized);
     const type: RowType = isSavingsRow ? 'saving' : section === 'expense' ? 'expense' : section === 'income' ? 'income' : 'other';
     if (type !== 'other') rows.push({ label, rowNumber: sheetRowNumber, type, values: monthColumns.map(index => parseAmount(record[index])) });
   }
@@ -222,7 +223,6 @@ export default function FinancialDashboard() {
   const [availableYears, setAvailableYears] = useState<number[]>([]);
   const [view, setView] = useState<View>('resumen');
   const [monthIndex, setMonthIndex] = useState(9);
-  const [selectedMonths, setSelectedMonths] = useState<number[]>(months.map((_, index) => index));
   const [selectedCategory, setSelectedCategory] = useState('');
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
@@ -237,9 +237,13 @@ export default function FinancialDashboard() {
     { label: 'Fran', rowNumber: statementRows.franContribution },
     { label: 'Elena', rowNumber: statementRows.elenaContribution },
   ].map(item => ({ ...item, amount: rows.find(row => row.rowNumber === item.rowNumber)?.values[monthIndex] ?? 0 }));
-  const isInvestment = (item: SheetRow) => /invers|invertid/.test(item.label.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es'));
   const annualIncome = months.reduce((total, _, index) => total + getValue(rows, 'income-total', index), 0);
   const annualRowValue = (rowNumber: number) => rows.find(item => item.rowNumber === rowNumber)?.values.reduce((sum, value) => sum + value, 0) ?? 0;
+  const monthlyRowsValue = (rowNumbers: number[], monthIndex: number) => rowNumbers.reduce((total, rowNumber) => total + (rows.find(item => item.rowNumber === rowNumber)?.values[monthIndex] ?? 0), 0);
+  const annualInvestmentBreakdown = annualInvestmentRows
+    .map(rowNumber => rows.find(item => item.rowNumber === rowNumber))
+    .filter((row): row is SheetRow => Boolean(row))
+    .map(row => ({ label: row.label, amount: annualRowValue(row.rowNumber) }));
   const annualSavingsBreakdown = annualSavingsRows
     .map(rowNumber => rows.find(item => item.rowNumber === rowNumber))
     .filter((row): row is SheetRow => Boolean(row))
@@ -249,9 +253,10 @@ export default function FinancialDashboard() {
     .filter((row): row is SheetRow => Boolean(row))
     .map(row => ({ label: row.label, amount: annualRowValue(row.rowNumber) }));
   const annualExpenses = annualExpenseBreakdown.reduce((total, item) => total + item.amount, 0);
+  const annualInvestment = annualInvestmentBreakdown.reduce((total, item) => total + item.amount, 0);
   const annualSavings = annualSavingsBreakdown.reduce((total, item) => total + item.amount, 0);
-  const annualInvestment = rows.filter(item => item.rowNumber === statementRows.elenaInvestment || isInvestment(item)).reduce((total, item) => total + item.values.reduce((sum, value) => sum + value, 0), 0);
   const annualPercent = (value: number) => annualIncome ? value / annualIncome * 100 : 0;
+  const investmentPercent = (value: number) => annualInvestment ? value / annualInvestment * 100 : 0;
   const savingsPercent = (value: number) => annualSavings ? value / annualSavings * 100 : 0;
   const expensePercent = (value: number) => annualExpenses ? value / annualExpenses * 100 : 0;
   const monthlyChart = months.map((name, index) => ({
@@ -263,9 +268,9 @@ export default function FinancialDashboard() {
   const yearlyChart = months.map((name, index) => ({
     name: name.slice(0, 3),
     ingresos: getValue(rows, 'income-total', index),
-    gastos: getValue(rows, 'expense-total', index),
-    ahorro: (rows.find(item => item.rowNumber === statementRows.elenaSavings)?.values[index] ?? 0) + (rows.find(item => item.rowNumber === statementRows.jointSavings)?.values[index] ?? 0),
-    inversion: (rows.find(item => item.rowNumber === statementRows.elenaInvestment)?.values[index] ?? 0) + rows.filter(item => isInvestment(item) && item.rowNumber !== statementRows.elenaInvestment).reduce((sum, item) => sum + item.values[index], 0),
+    gastos: monthlyRowsValue(annualExpenseRows, index),
+    ahorro: monthlyRowsValue(annualSavingsRows, index),
+    inversion: monthlyRowsValue(annualInvestmentRows, index),
   }));
   const annualSpending = rows.filter(item => item.type === 'expense')
     .map((item, index) => ({ name: item.label, value: item.values.reduce((sum, amount) => sum + amount, 0), fill: colors[index % colors.length] }))
@@ -285,10 +290,10 @@ export default function FinancialDashboard() {
     color: colors[index % colors.length],
     byYear: selectedYearRows.map(entry => ({
       year: entry.year,
-      amount: entry.rows.find(item => item.type === 'expense' && item.label === label)?.values.reduce((sum, value, month) => sum + (selectedMonths.includes(month) ? value : 0), 0) ?? 0,
+      amount: entry.rows.find(item => item.type === 'expense' && item.label === label)?.values.reduce((sum, value) => sum + value, 0) ?? 0,
     })),
-  })).map(item => ({ ...item, total: item.byYear.reduce((sum, entry) => sum + entry.amount, 0) })).sort((a, b) => b.total - a.total);
-  const categoryLineData = selectedMonths.map(month => {
+  })).map(item => ({ ...item, total: item.byYear.reduce((sum, entry) => sum + entry.amount, 0) })).map(item => ({ ...item, monthlyAverage: item.total / Math.max(1, selectedYearRows.length * 12) })).sort((a, b) => b.total - a.total);
+  const categoryLineData = months.map((_, month) => {
     const point: Record<string, string | number> = { month: months[month].slice(0, 3) };
     selectedYearRows.forEach(entry => {
       point[String(entry.year)] = entry.rows.find(item => item.type === 'expense' && item.label === activeCategory)?.values[month] ?? 0;
@@ -362,12 +367,6 @@ export default function FinancialDashboard() {
     } finally { setLoading(false); }
   }
 
-  function toggleMonth(month: number) {
-    setSelectedMonths(previous => previous.includes(month)
-      ? previous.length > 1 ? previous.filter(item => item !== month) : previous
-      : [...previous, month].sort((a, b) => a - b));
-  }
-
   function authorizeAppsScript() {
     if (!appsScriptUrl) return;
     const url = new URL(appsScriptUrl);
@@ -422,26 +421,31 @@ export default function FinancialDashboard() {
       <header className="finance-topbar"><span>Finanzas personales <span>/</span> {pageTitle}</span><span className="topbar-date">HOJA <strong>GASTOS {year}</strong></span></header>
       <div className={`finance-content ${view === 'ahorros' ? 'savings-page' : ''}`}>
         <section className="finance-heading">
-          <div><span className="overline">FRANELA · CONTROL DEL HOGAR</span><h1>{pageTitle}</h1><p>{view === 'anual' ? `Totales y distribución de GASTOS ${year}.` : view === 'categorias' ? 'Compara el gasto por categoría y su evolución.' : 'Una lectura sencilla de vuestro dinero, mes a mes.'}</p></div>
-          <div className="period-controls">
-            <details className="multi-filter"><summary>{selectedYears.length} {selectedYears.length === 1 ? 'año' : 'años'}</summary><div className="multi-options" aria-label="Seleccionar hojas anuales">{Array.from(new Set([...availableYears, ...selectedYears])).sort((a, b) => a - b).map(optionYear => <label key={optionYear}><input type="checkbox" checked={selectedYears.includes(optionYear)} onChange={() => void toggleYear(optionYear)}/><span>GASTOS {optionYear}</span></label>)}</div></details>
-            <details className="multi-filter"><summary>{selectedMonths.length === 12 ? 'Todos los meses' : `${selectedMonths.length} meses`}</summary><div className="multi-options month-options" aria-label="Seleccionar meses">{months.map((name, index) => <label key={name}><input type="checkbox" checked={selectedMonths.includes(index)} onChange={() => toggleMonth(index)}/><span>{name.charAt(0).toLocaleUpperCase('es') + name.slice(1)}</span></label>)}</div></details>
-            {view !== 'categorias' && <label className="month-control"><span>MES</span><select aria-label="Mes del resumen" value={monthIndex} onChange={event => setMonthIndex(Number(event.target.value))}>{months.map((name, index) => <option key={name} value={index}>{name.charAt(0).toLocaleUpperCase('es') + name.slice(1)}</option>)}</select></label>}
-          </div>
+          <div><span className="overline">FRANELA · CONTROL DEL HOGAR</span><h1>{pageTitle}</h1><p>{view === 'anual' ? `Totales y distribución de GASTOS ${year}.` : view === 'categorias' ? 'Compara el gasto por categoría y su evolución.' : view === 'ahorros' ? 'Patrimonio, titulares y posiciones de ahorro.' : 'Una lectura sencilla de vuestro dinero, mes a mes.'}</p></div>
+          {view !== 'ahorros' && <div className="period-controls">
+            {view === 'anual' ? <label className="month-control"><span>AÑO</span><select aria-label="Año del resumen anual" value={year} onChange={event => void syncSheet(Number(event.target.value))}>{availableYears.map(optionYear => <option key={optionYear} value={optionYear}>GASTOS {optionYear}</option>)}</select></label> : <>
+              <details className="multi-filter"><summary>{selectedYears.length} {selectedYears.length === 1 ? 'año' : 'años'}</summary><div className="multi-options" aria-label="Seleccionar hojas anuales">{Array.from(new Set([...availableYears, ...selectedYears])).sort((a, b) => a - b).map(optionYear => <label key={optionYear}><input type="checkbox" checked={selectedYears.includes(optionYear)} onChange={() => void toggleYear(optionYear)}/><span>GASTOS {optionYear}</span></label>)}</div></details>
+              {view !== 'categorias' && <label className="month-control"><span>MES</span><select aria-label="Mes del resumen" value={monthIndex} onChange={event => setMonthIndex(Number(event.target.value))}>{months.map((name, index) => <option key={name} value={index}>{name.charAt(0).toLocaleUpperCase('es') + name.slice(1)}</option>)}</select></label>}
+            </>}
+          </div>}
         </section>
 
         {view === 'ahorros' ? <>
+          <section className="savings-overview" aria-label="Resumen del patrimonio ahorrado">
+            <article className="savings-total"><span className="overline">PATRIMONIO TOTAL</span><strong>{money(totalSavings)}</strong><small>Suma de todas las posiciones</small></article>
+            {savingsGroups.map((group, index) => <article className="savings-owner" key={group.name}><i className="savings-owner-mark" style={{ background: colors[index % colors.length] }}/><div><span>{group.name}</span><strong>{money(group.total)}</strong></div><small>{totalSavings ? `${(group.total / totalSavings * 100).toLocaleString('es-ES', { maximumFractionDigits: 1 })}%` : '0 %'}</small></article>)}
+          </section>
           <section className="savings-content-grid savings-table-layout">
             <article className="finance-panel savings-breakdown"><div className="panel-title"><div><span className="overline">DISTRIBUCIÓN</span><h2>Saldo por titular</h2></div></div>{savingsGroups.length ? <div className="savings-donut"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={savingsGroups} dataKey="total" nameKey="name" innerRadius={65} outerRadius={96} paddingAngle={3} stroke="none">{savingsGroups.map((group, index) => <Cell key={group.name} fill={colors[index % colors.length]}/>)}</Pie><Tooltip formatter={value => money(Number(value))}/><Legend verticalAlign="bottom" iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 9 }}/></PieChart></ResponsiveContainer><div className="savings-donut-center"><strong>{money(totalSavings)}</strong><small>patrimonio total</small></div></div> : <div className="chart-empty">Cargando AHORROS…</div>}</article>
             <article className="finance-panel savings-sheet-panel"><div className="savings-sheet-heading"><div><span className="overline">AHORROS · RESUMEN DE POSICIONES</span><h2>Patrimonio total <strong>{money(totalSavings)}</strong></h2></div><button className="icon-btn" aria-label="Actualizar ahorros" title="Actualizar ahorros" onClick={() => void syncSavings()} disabled={loading}><RefreshCw size={16} className={loading ? 'spin' : ''}/></button></div>{savingsGroups.length ? <div className="savings-table-wrap"><table className="savings-table"><thead><tr><th>Titular</th><th className="savings-amount">Saldo total</th><th>Cuenta / activo</th><th className="savings-amount">Importe</th></tr></thead><tbody>{savingsGroups.flatMap(group => group.positions.map((position, positionIndex) => <tr className={positionIndex === 0 ? 'savings-first-position' : ''} key={`${group.name}-${position.name}-${positionIndex}`}><td>{positionIndex === 0 ? <strong>{group.name}</strong> : null}</td><td className="savings-amount">{positionIndex === 0 ? <strong>{money(group.total)}</strong> : null}</td><td>{position.name}</td><td className="savings-amount">{money(position.amount)}</td></tr>))}</tbody><tfoot><tr><th>Total</th><th className="savings-amount">{money(totalSavings)}</th><td colSpan={2}/></tr></tfoot></table></div> : <div className="chart-empty">No hay posiciones para mostrar.</div>}</article>
           </section>
           {status && <p className={status.startsWith('Actualizado') ? 'import-status success' : 'import-status'} role="status">{status}</p>}
         </> : view === 'categorias' ? <>
-          <section className="category-kpi-grid" aria-label="Gasto por categoría en los meses seleccionados">
+          <section className="category-kpi-grid" aria-label="Media mensual de gasto por categoría">
             {categoryTotals.filter(item => item.total !== 0).map(item => <article className="category-kpi" key={item.label} style={{ '--category-color': item.color } as CSSProperties}>
               <div className="category-kpi-heading"><i/><strong>{item.label}</strong></div>
-              <b>{money(item.total)}</b>
-              <small>{selectedMonths.length === 12 ? 'Año completo' : `${selectedMonths.length} meses seleccionados`}</small>
+              <b>{money(item.monthlyAverage)}</b>
+              <small>Media mensual</small>
               <div className="category-year-values">{item.byYear.map(entry => <span key={entry.year}>{entry.year} <strong>{money(entry.amount)}</strong></span>)}</div>
             </article>)}
             {categoryTotals.every(item => item.total === 0) && <div className="finance-panel category-empty">Carga las hojas de los años que quieres comparar para ver sus categorías.</div>}
@@ -449,19 +453,19 @@ export default function FinancialDashboard() {
           <section className="finance-panel category-trend-panel">
             <div className="panel-title category-trend-heading"><div><span className="overline">COMPARATIVA MENSUAL · {selectedYears.slice().sort().join(' / ')}</span><h2>Evolución por categoría</h2></div><label className="category-select"><span>CATEGORÍA</span><select aria-label="Categoría a comparar" value={activeCategory} onChange={event => setSelectedCategory(event.target.value)}>{categoryNames.map(category => <option key={category} value={category}>{category}</option>)}</select></label></div>
             {activeCategory && selectedYearRows.length ? <div className="category-line-chart"><ResponsiveContainer width="100%" height="100%"><LineChart data={categoryLineData} margin={{ top: 12, right: 12, left: -12, bottom: 0 }}><CartesianGrid vertical={false} stroke="#e9eee9"/><XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: '#82918a', fontSize: 11 }}/><YAxis tickLine={false} axisLine={false} tick={{ fill: '#82918a', fontSize: 10 }} tickFormatter={value => `${Math.round(Number(value))} €`}/><Tooltip formatter={value => money(Number(value))}/><Legend verticalAlign="top" align="right" iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 10, paddingBottom: 12 }}/>{selectedYearRows.map((entry, index) => <Line key={entry.year} type="monotone" dataKey={String(entry.year)} name={`GASTOS ${entry.year}`} stroke={colors[(index + 2) % colors.length]} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }}/>)}</LineChart></ResponsiveContainer></div> : <div className="chart-empty">Selecciona al menos una hoja anual con datos.</div>}
-            <p className="chart-caption">El gráfico muestra solo los meses seleccionados arriba. Marca varios años para comparar sus líneas.</p>
+            <p className="chart-caption">La media mensual se calcula sobre los meses del año completo. Marca varios años para comparar sus líneas.</p>
           </section>
         </> : view === 'anual' ? <>
           <section className="finance-kpis monthly-kpis annual-kpis" aria-label={`Totales anuales de ${year}`}>
             <article className="kpi kpi-income"><div className="kpi-label"><span>Ingresos totales</span><TrendingUp size={17}/></div><strong>{money(annualIncome)}</strong><small>Total de enero a diciembre</small></article>
             <article className="kpi kpi-expense kpi-expense-breakdown"><div className="kpi-label"><span>Gastos anuales</span><TrendingDown size={17}/></div><strong>{money(annualExpenses)}</strong><small>{annualPercent(annualExpenses).toLocaleString('es-ES', { maximumFractionDigits: 1 })}% de los ingresos</small><div className="expense-sub-kpis">{annualExpenseBreakdown.map(item => <div key={item.label}><span>{item.label}</span><b>{money(item.amount)} · {expensePercent(item.amount).toLocaleString('es-ES', { maximumFractionDigits: 1 })}%</b></div>)}</div></article>
             <article className="kpi kpi-saving kpi-savings-breakdown"><div className="kpi-label"><span>Ahorro anual</span><PiggyBank size={17}/></div><strong>{money(annualSavings)}</strong><small>{annualPercent(annualSavings).toLocaleString('es-ES', { maximumFractionDigits: 1 })}% de los ingresos</small><div className="savings-sub-kpis">{annualSavingsBreakdown.map(item => <div key={item.label}><span>{item.label}</span><b>{money(item.amount)} · {savingsPercent(item.amount).toLocaleString('es-ES', { maximumFractionDigits: 1 })}%</b></div>)}</div></article>
+            <article className="kpi kpi-investment kpi-savings-breakdown"><div className="kpi-label"><span>Inversión anual</span><ChartNoAxesCombined size={17}/></div><strong>{money(annualInvestment)}</strong><small>{annualPercent(annualInvestment).toLocaleString('es-ES', { maximumFractionDigits: 1 })}% de los ingresos</small><div className="savings-sub-kpis">{annualInvestmentBreakdown.map(item => <div key={item.label}><span>{item.label}</span><b>{money(item.amount)} · {investmentPercent(item.amount).toLocaleString('es-ES', { maximumFractionDigits: 1 })}%</b></div>)}</div></article>
           </section>
           <section className="chart-layout annual-layout">
-            <article className="finance-panel trend-panel"><div className="panel-title"><div><span className="overline">GASTOS {year} · EVOLUCIÓN</span><h2>Flujo anual por mes</h2></div><span className="legend-chip"><i/> EUR</span></div><div className="annual-chart"><ResponsiveContainer width="100%" height="100%"><BarChart data={yearlyChart} margin={{ top: 12, right: 8, left: -12, bottom: 0 }} barGap={3}><CartesianGrid vertical={false} stroke="#e9eee9"/><XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: '#82918a', fontSize: 11 }}/><YAxis tickLine={false} axisLine={false} tick={{ fill: '#82918a', fontSize: 10 }} tickFormatter={value => `${Math.round(Number(value) / 1000)}k`}/><Tooltip formatter={value => money(Number(value))}/><Legend verticalAlign="top" align="right" iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 10, paddingBottom: 12 }}/><Bar dataKey="ingresos" name="Ingresos" fill="#187c68" radius={[3, 3, 0, 0]} maxBarSize={20}/><Bar dataKey="gastos" name="Gastos" fill="#e6a751" radius={[3, 3, 0, 0]} maxBarSize={20}/><Bar dataKey="ahorro" name="Ahorro" fill="#8195bd" radius={[3, 3, 0, 0]} maxBarSize={20}/><Bar dataKey="inversion" name="Inversión" fill="#9b79a7" radius={[3, 3, 0, 0]} maxBarSize={20}/></BarChart></ResponsiveContainer></div><p className="chart-caption">Porcentajes calculados sobre el total ingresado en el año.</p></article>
-            <article className="finance-panel category-panel"><div className="panel-title"><div><span className="overline">GASTOS {year} · CATEGORÍAS</span><h2>En qué se gastó</h2></div></div>{annualSpending.length ? <><div className="donut-chart"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={annualSpending.slice(0, 7)} dataKey="value" nameKey="name" innerRadius={58} outerRadius={83} paddingAngle={2} stroke="none">{annualSpending.slice(0, 7).map(item => <Cell key={item.name} fill={item.fill}/>)}</Pie><Tooltip formatter={value => money(Number(value))}/></PieChart></ResponsiveContainer><div className="donut-center"><strong>{money(annualExpenses)}</strong><small>gasto anual</small></div></div><div className="category-legend">{annualSpending.slice(0, 5).map(item => <div key={item.name}><span><i style={{ background: item.fill }}/>{item.name}</span><strong>{money(item.value)}</strong></div>)}</div></> : <div className="chart-empty">Sin gastos registrados este año.</div>}</article>
+            <article className="finance-panel trend-panel"><div className="panel-title"><div><span className="overline">GASTOS {year} · EVOLUCIÓN</span><h2>Flujo anual por mes</h2></div><span className="legend-chip"><i/> EUR</span></div><div className="annual-chart"><ResponsiveContainer width="100%" height="100%"><BarChart data={yearlyChart} margin={{ top: 12, right: 8, left: -12, bottom: 0 }} barGap={3}><CartesianGrid vertical={false} stroke="#e9eee9"/><XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: '#82918a', fontSize: 11 }}/><YAxis tickLine={false} axisLine={false} tick={{ fill: '#82918a', fontSize: 10 }} tickFormatter={value => `${Math.round(Number(value) / 1000)}k`}/><Tooltip formatter={value => money(Number(value))}/><Legend verticalAlign="top" align="right" iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 10, paddingBottom: 12 }}/><Bar dataKey="ingresos" name="Ingresos" fill="#187c68" radius={[3, 3, 0, 0]} maxBarSize={20}/><Bar dataKey="gastos" name="Gastos" fill="#e6a751" radius={[3, 3, 0, 0]} maxBarSize={20}/><Bar dataKey="ahorro" name="Ahorro" fill="#8195bd" radius={[3, 3, 0, 0]} maxBarSize={20}/><Bar dataKey="inversion" name="Inversión" fill="#9b79a7" radius={[3, 3, 0, 0]} maxBarSize={20}/></BarChart></ResponsiveContainer></div></article>
+            <article className="finance-panel category-panel"><div className="panel-title"><div><span className="overline">GASTOS {year} · CATEGORÍAS</span><h2>En qué se gastó</h2></div></div>{annualSpending.length ? <><div className="donut-chart"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={annualSpending.slice(0, 7)} dataKey="value" nameKey="name" innerRadius={58} outerRadius={83} paddingAngle={2} stroke="none">{annualSpending.slice(0, 7).map(item => <Cell key={item.name} fill={item.fill}/>)}</Pie><Tooltip formatter={value => money(Number(value))}/></PieChart></ResponsiveContainer><div className="donut-center"><strong>{money(annualExpenses)}</strong><small>gasto anual</small></div></div><div className="category-legend">{annualSpending.slice(0, 5).map(item => <div key={item.name}><span><i style={{ background: item.fill }}/>{item.name}</span><strong>{money(item.value)} · {expensePercent(item.value).toLocaleString('es-ES', { maximumFractionDigits: 1 })}%</strong></div>)}</div></> : <div className="chart-empty">Sin gastos registrados este año.</div>}</article>
           </section>
-          <section className="finance-panel annual-summary-panel"><div className="panel-title"><div><span className="overline">DISTRIBUCIÓN DE INGRESOS</span><h2>Porcentajes anuales</h2></div></div><div className="annual-percentage-list">{[{ label: 'Invertido', amount: annualInvestment, tone: 'investment' }, { label: 'Ahorrado', amount: annualSavings, tone: 'saving' }, { label: 'Gastado', amount: annualExpenses, tone: 'expense' }].map(item => <div className="annual-percentage-row" key={item.label}><div className="annual-percentage-label"><strong>{item.label}</strong><span>{money(item.amount)} · {annualPercent(item.amount).toLocaleString('es-ES', { maximumFractionDigits: 1 })}%</span></div><div className="progress"><div className={`annual-progress-fill ${item.tone}`} style={{ width: `${Math.min(100, Math.abs(annualPercent(item.amount)))}%` }}/></div></div>)}</div><p className="chart-caption">“Invertido” suma las filas cuyo concepto contiene inversión/invertido. El resto de filas de ahorro se contabiliza como ahorro.</p></section>
         </> : <>
           <section className="finance-kpis monthly-kpis" aria-label="Indicadores del mes">
             <article className="kpi kpi-income kpi-income-breakdown"><div className="kpi-label"><span>Ingresos totales</span><TrendingUp size={17}/></div><strong>{money(income)}</strong><div className="income-sub-kpis">{incomeContributions.map(item => <div key={item.rowNumber}><span>{item.label}</span><b>{money(item.amount)}</b></div>)}</div></article>
