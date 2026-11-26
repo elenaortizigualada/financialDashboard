@@ -452,8 +452,8 @@ export default function FinancialDashboard() {
           <section className="category-kpi-grid" aria-label="Media mensual de gasto por categoría">
             {categoryTotals.filter(item => item.total !== 0).map(item => <article className="category-kpi" key={item.label} style={{ '--category-color': item.color } as CSSProperties}>
               <div className="category-kpi-heading"><i/><strong>{item.label}</strong></div>
-              <div className="category-kpi-values"><b>{money(item.total)} <span>({money(item.monthlyAverage)})</span></b></div>
-              <small>{totalCategoryExpenses ? `${(item.total / totalCategoryExpenses * 100).toLocaleString('es-ES', { maximumFractionDigits: 1 })}% del total de gastos` : '0 % del total de gastos'}</small>
+              <div className="category-kpi-values"><b>{money(item.total)}</b></div>
+              <small>{money(item.monthlyAverage)} media mensual · {totalCategoryExpenses ? `${(item.total / totalCategoryExpenses * 100).toLocaleString('es-ES', { maximumFractionDigits: 1 })}% del total de gastos` : '0 % del total de gastos'}</small>
             </article>)}
             {categoryTotals.every(item => item.total === 0) && <div className="finance-panel category-empty">Carga las hojas de los años que quieres comparar para ver sus categorías.</div>}
           </section>
