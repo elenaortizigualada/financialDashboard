@@ -102,7 +102,10 @@ button{cursor:pointer}
 .category-kpi:before{position:absolute;inset:0 auto 0 0;width:3px;background:var(--category-color);content:''}
 .category-kpi-heading{display:flex;align-items:center;gap:7px;min-height:14px;color:#78877f;font-size:9px}
 .category-kpi-heading i{width:7px;height:7px;border-radius:50%;background:var(--category-color)}
-.category-kpi>b{display:block;margin-top:5px;color:#294239;font:700 14px Manrope,sans-serif;white-space:nowrap}
+.category-kpi-values{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:7px;margin-top:5px}
+.category-kpi-values>div{min-width:0}
+.category-kpi-values b{display:block;color:#294239;font:700 14px Manrope,sans-serif;white-space:nowrap}
+.category-kpi-values strong{display:block;color:#53675c;font:700 11px Manrope,sans-serif;white-space:nowrap}
 .category-kpi>small{display:block;margin-top:2px;color:#9aa59e;font-size:7px}
 .category-year-values{display:flex;flex-wrap:wrap;gap:4px 8px;margin-top:7px;padding-top:6px;border-top:1px solid #eff2ee}
 .category-year-values span{color:#8b9990;font-size:7px}.category-year-values strong{margin-left:2px;color:#53645b;font-size:7px;font-weight:600}
@@ -145,6 +148,10 @@ button{cursor:pointer}
 .savings-owner>div>span{overflow:hidden;color:#829188;font-size:9px;text-overflow:ellipsis;white-space:nowrap}
 .savings-owner>div>strong{color:#30483d;font:700 16px Manrope,sans-serif;white-space:nowrap}
 .savings-owner>small{color:#187c68;font-size:9px;font-weight:700}
+.savings-owner-positions{display:grid;gap:5px;padding-top:7px;border-top:1px solid #edf1ed}
+.savings-owner-positions>div{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.savings-owner-positions span{overflow:hidden;color:#829188;font-size:8px;text-overflow:ellipsis;white-space:nowrap}
+.savings-owner-positions b{color:#4b6256;font-size:8px;font-weight:700;white-space:nowrap}
 .savings-content-grid{display:grid;grid-template-columns:minmax(270px,.85fr) minmax(0,1.7fr);gap:14px;align-items:start}
 .savings-breakdown{min-height:360px;padding:19px 20px}
 .positions-panel{min-height:0;padding:14px 16px}
