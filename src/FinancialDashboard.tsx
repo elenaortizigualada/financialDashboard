@@ -15,6 +15,8 @@ declare global {
 
 const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const statementRows = { jointContribution: 2, franContribution: 7, elenaContribution: 8, elenaInvestment: 9, elenaSavings: 10, jointSavings: 11, expenseTotal: 13, incomeTotal: 46 };
+const annualSavingsRows = [5, 6, 7, 8, 9];
+const annualExpenseRows = [11, 12, 13];
 const sheetUrl = 'https://docs.google.com/spreadsheets/d/1guiYQ_gslGv325ttmCwve0y-G-h0tXssC-CHdVb-WuA/edit';
 const appsScriptUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL?.trim() ?? '';
 const colors = ['#187c68', '#e49b38', '#4f83c2', '#b86855', '#8b78ad', '#6d9f86', '#d2769a', '#87949b', '#c2a64d', '#5eaaa6', '#9a6d54', '#7391b6'];
@@ -50,7 +52,11 @@ function parseSheet(table: (string | number | boolean)[][]): SheetRow[] {
     const label = String(record[0] ?? '').trim();
     const normalized = label.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es');
     if (!label) continue;
-    if (sheetRowNumber === statementRows.expenseTotal || normalized === 'gastos') { section = 'expense'; rows.push({ label, rowNumber: sheetRowNumber, type: 'expense-total', values: monthColumns.map(index => parseAmount(record[index])) }); continue; }
+    if (annualExpenseRows.includes(sheetRowNumber) || normalized === 'gastos') {
+      section = 'expense';
+      rows.push({ label, rowNumber: sheetRowNumber, type: sheetRowNumber === statementRows.expenseTotal && normalized === 'gastos' ? 'expense-total' : 'expense', values: monthColumns.map(index => parseAmount(record[index])) });
+      continue;
+    }
     if (normalized === 'sobra') { section = 'other'; continue; }
     // No uses una posición fija para los ingresos: si se inserta una fila en la
     // hoja, esa posición puede apuntar a otro concepto y mostrar un importe
@@ -64,7 +70,7 @@ function parseSheet(table: (string | number | boolean)[][]): SheetRow[] {
       rows.push({ label, rowNumber: sheetRowNumber, type: 'contribution', values: monthColumns.map(index => parseAmount(record[index])) });
       continue;
     }
-    const isSavingsRow = [statementRows.elenaInvestment, statementRows.elenaSavings, statementRows.jointSavings].includes(sheetRowNumber) || normalized.startsWith('ahorro') || /invers|invertid/.test(normalized);
+    const isSavingsRow = annualSavingsRows.includes(sheetRowNumber) || [statementRows.elenaInvestment, statementRows.elenaSavings, statementRows.jointSavings].includes(sheetRowNumber) || normalized.startsWith('ahorro') || /invers|invertid/.test(normalized);
     const type: RowType = isSavingsRow ? 'saving' : section === 'expense' ? 'expense' : section === 'income' ? 'income' : 'other';
     if (type !== 'other') rows.push({ label, rowNumber: sheetRowNumber, type, values: monthColumns.map(index => parseAmount(record[index])) });
   }
@@ -233,19 +239,21 @@ export default function FinancialDashboard() {
   ].map(item => ({ ...item, amount: rows.find(row => row.rowNumber === item.rowNumber)?.values[monthIndex] ?? 0 }));
   const isInvestment = (item: SheetRow) => /invers|invertid/.test(item.label.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es'));
   const annualIncome = months.reduce((total, _, index) => total + getValue(rows, 'income-total', index), 0);
-  const annualExpenses = months.reduce((total, _, index) => total + getValue(rows, 'expense-total', index), 0);
   const annualRowValue = (rowNumber: number) => rows.find(item => item.rowNumber === rowNumber)?.values.reduce((sum, value) => sum + value, 0) ?? 0;
-  const annualIncomeContributions = [
-    { label: 'Cuenta conjunta', rowNumber: statementRows.jointContribution },
-    { label: 'Fran', rowNumber: statementRows.franContribution },
-    { label: 'Elena', rowNumber: statementRows.elenaContribution },
-  ].map(item => ({ ...item, amount: annualRowValue(item.rowNumber) }));
-  const annualJointSavings = annualRowValue(statementRows.jointSavings);
-  const annualElenaSavings = annualRowValue(statementRows.elenaSavings);
-  const annualElenaInvestment = annualRowValue(statementRows.elenaInvestment);
+  const annualSavingsBreakdown = annualSavingsRows
+    .map(rowNumber => rows.find(item => item.rowNumber === rowNumber))
+    .filter((row): row is SheetRow => Boolean(row))
+    .map(row => ({ label: row.label, amount: annualRowValue(row.rowNumber) }));
+  const annualExpenseBreakdown = annualExpenseRows
+    .map(rowNumber => rows.find(item => item.rowNumber === rowNumber))
+    .filter((row): row is SheetRow => Boolean(row))
+    .map(row => ({ label: row.label, amount: annualRowValue(row.rowNumber) }));
+  const annualExpenses = annualExpenseBreakdown.reduce((total, item) => total + item.amount, 0);
+  const annualSavings = annualSavingsBreakdown.reduce((total, item) => total + item.amount, 0);
   const annualInvestment = rows.filter(item => item.rowNumber === statementRows.elenaInvestment || isInvestment(item)).reduce((total, item) => total + item.values.reduce((sum, value) => sum + value, 0), 0);
-  const annualSavings = rows.filter(item => item.rowNumber === statementRows.elenaSavings || item.rowNumber === statementRows.jointSavings).reduce((total, item) => total + item.values.reduce((sum, value) => sum + value, 0), 0);
   const annualPercent = (value: number) => annualIncome ? value / annualIncome * 100 : 0;
+  const savingsPercent = (value: number) => annualSavings ? value / annualSavings * 100 : 0;
+  const expensePercent = (value: number) => annualExpenses ? value / annualExpenses * 100 : 0;
   const monthlyChart = months.map((name, index) => ({
     name: name.slice(0, 3),
     ingresos: getValue(rows, 'income-total', index),
@@ -445,9 +453,9 @@ export default function FinancialDashboard() {
           </section>
         </> : view === 'anual' ? <>
           <section className="finance-kpis monthly-kpis annual-kpis" aria-label={`Totales anuales de ${year}`}>
-            <article className="kpi kpi-income kpi-income-breakdown"><div className="kpi-label"><span>Ingresos totales</span><TrendingUp size={17}/></div><strong>{money(annualIncome)}</strong><div className="income-sub-kpis">{annualIncomeContributions.map(item => <div key={item.rowNumber}><span>{item.label}</span><b>{money(item.amount)}</b></div>)}</div></article>
-            <article className="kpi kpi-expense"><div className="kpi-label"><span>Gastos anuales</span><TrendingDown size={17}/></div><strong>{money(annualExpenses)}</strong><small>Total de enero a diciembre</small></article>
-            <article className="kpi kpi-saving kpi-savings-breakdown"><div className="kpi-label"><span>Ahorro conjunto</span><PiggyBank size={17}/></div><strong>{money(annualJointSavings)}</strong><div className="savings-sub-kpis"><div><span>Ahorro Elena</span><b>{money(annualElenaSavings)}</b></div><div><span>Inversión Elena</span><b>{money(annualElenaInvestment)}</b></div></div></article>
+            <article className="kpi kpi-income"><div className="kpi-label"><span>Ingresos totales</span><TrendingUp size={17}/></div><strong>{money(annualIncome)}</strong><small>Total de enero a diciembre</small></article>
+            <article className="kpi kpi-expense kpi-expense-breakdown"><div className="kpi-label"><span>Gastos anuales</span><TrendingDown size={17}/></div><strong>{money(annualExpenses)}</strong><small>{annualPercent(annualExpenses).toLocaleString('es-ES', { maximumFractionDigits: 1 })}% de los ingresos</small><div className="expense-sub-kpis">{annualExpenseBreakdown.map(item => <div key={item.label}><span>{item.label}</span><b>{money(item.amount)} · {expensePercent(item.amount).toLocaleString('es-ES', { maximumFractionDigits: 1 })}%</b></div>)}</div></article>
+            <article className="kpi kpi-saving kpi-savings-breakdown"><div className="kpi-label"><span>Ahorro anual</span><PiggyBank size={17}/></div><strong>{money(annualSavings)}</strong><small>{annualPercent(annualSavings).toLocaleString('es-ES', { maximumFractionDigits: 1 })}% de los ingresos</small><div className="savings-sub-kpis">{annualSavingsBreakdown.map(item => <div key={item.label}><span>{item.label}</span><b>{money(item.amount)} · {savingsPercent(item.amount).toLocaleString('es-ES', { maximumFractionDigits: 1 })}%</b></div>)}</div></article>
           </section>
           <section className="chart-layout annual-layout">
             <article className="finance-panel trend-panel"><div className="panel-title"><div><span className="overline">GASTOS {year} · EVOLUCIÓN</span><h2>Flujo anual por mes</h2></div><span className="legend-chip"><i/> EUR</span></div><div className="annual-chart"><ResponsiveContainer width="100%" height="100%"><BarChart data={yearlyChart} margin={{ top: 12, right: 8, left: -12, bottom: 0 }} barGap={3}><CartesianGrid vertical={false} stroke="#e9eee9"/><XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: '#82918a', fontSize: 11 }}/><YAxis tickLine={false} axisLine={false} tick={{ fill: '#82918a', fontSize: 10 }} tickFormatter={value => `${Math.round(Number(value) / 1000)}k`}/><Tooltip formatter={value => money(Number(value))}/><Legend verticalAlign="top" align="right" iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 10, paddingBottom: 12 }}/><Bar dataKey="ingresos" name="Ingresos" fill="#187c68" radius={[3, 3, 0, 0]} maxBarSize={20}/><Bar dataKey="gastos" name="Gastos" fill="#e6a751" radius={[3, 3, 0, 0]} maxBarSize={20}/><Bar dataKey="ahorro" name="Ahorro" fill="#8195bd" radius={[3, 3, 0, 0]} maxBarSize={20}/><Bar dataKey="inversion" name="Inversión" fill="#9b79a7" radius={[3, 3, 0, 0]} maxBarSize={20}/></BarChart></ResponsiveContainer></div><p className="chart-caption">Porcentajes calculados sobre el total ingresado en el año.</p></article>
